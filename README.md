@@ -1,58 +1,99 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Patchbay Server
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A deployable Reverb control plane: a Laravel app running
+[Patchbay](https://github.com/RobertBoes/patchbay), so WebSocket applications live in
+the database and can be changed while the server is running.
 
-## About Laravel
+## Local setup
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
-
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
-
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+```
+composer install
+cp .env.example .env && php artisan key:generate
+php artisan migrate
+php artisan patchbay:app my-app
+php artisan reverb:start --debug
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+The cache store must be shared between the web process and the Reverb server, since
+that is how application changes reach the running server. `database` (the default
+here) and `redis` both work; `array` does not.
 
-## Contributing
+## Hosting it
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+The dashboard and the WebSocket server are two faces of one deployment, and
+they are happiest on two hostnames:
 
-## Code of Conduct
+```
+DASHBOARD_DOMAIN=dash.my-ws-server.com   # the control panel and its landing page
+PATCHBAY_HOST=ws.my-ws-server.com        # the address handed to clients
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+`DASHBOARD_DOMAIN` binds the panel and the landing page to that hostname.
+Anything arriving by the WebSocket name gets a 404 instead of a login form, so
+a misdirected request cannot find the control plane by accident. Leave it
+empty — as a local install does — and the panel answers on every hostname.
 
-## Security Vulnerabilities
+`PATCHBAY_HOST` is what goes in the `.env` snippet each application is given.
+It describes how the outside world reaches the server, not how the server
+binds; `REVERB_SERVER_HOST` and `REVERB_SERVER_PORT` decide that.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Both names point at the same machine. Terminate TLS in front of it and route
+by name: the WebSocket name to the Reverb server's port, the dashboard name to
+PHP.
 
-## License
+```nginx
+server {
+    server_name ws.my-ws-server.com;
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "Upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 7d;   # a held connection is not an idle one
+    }
+}
+
+server {
+    server_name dash.my-ws-server.com;
+    root /srv/patchbay-server/public;
+
+    # ...the usual Laravel site block
+}
+```
+
+The WebSocket block's read timeout matters. A connection that is doing its job
+sends nothing for minutes at a time, and a proxy that treats silence as death
+closes connections the server was quite happy with.
+
+## The public page
+
+`/` serves a page naming the service, reporting whether the WebSocket server
+is answering, and linking to the dashboard. It says nothing about the
+applications the server is carrying — no names, no counts, no addresses — so
+it is safe to leave open.
+
+Turn it off entirely with `DASHBOARD_LANDING=false`, and the root becomes a
+404 like anything else that is not there.
+
+## Securing a deployment
+
+| | |
+|---|---|
+| `DASHBOARD_ALLOWED_EMAILS` | A comma-separated allowlist. Credentials alone stop being enough; the address has to be one you named. Checked on every request, so taking someone off the list ends the session they already had open. |
+| `DASHBOARD_REQUIRE_MFA` | Sends everyone to set up an authenticator app before they can use the panel. Available from the profile page either way, with recovery codes. |
+| `TRUSTED_PROXIES` | The proxies in front of the application, or `*` when nothing else can reach it. Without it every request appears to come from the load balancer, which would put the whole internet in one login-throttle bucket. |
+| `SESSION_SECURE_COOKIE` | `true` anywhere the dashboard is served over https. |
+| `SESSION_DOMAIN` | Leave `null`. Widening it to `.my-ws-server.com` would hand the session cookie to the WebSocket hostname as well. |
+
+There is no registration route. Accounts are made on the server:
+
+```
+php artisan make:filament-user
+```
+
+Sign-ins are throttled at five attempts a minute per address, and in
+production every URL the application generates is https.

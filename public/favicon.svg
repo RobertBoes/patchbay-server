@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none">
+  <!-- A favicon sits on browser chrome this document knows nothing about, so
+       the tail follows the viewer's theme rather than assuming a light tab. -->
+  <style>
+    .tail { stroke: #1c1917; }
+    .dot { fill: #1c1917; }
+    @media (prefers-color-scheme: dark) {
+      .tail { stroke: #f5f5f4; }
+      .dot { fill: #f5f5f4; }
+    }
+  </style>
+  <g stroke-width="3.4" stroke-linecap="round">
+    <path d="M7 8v24" stroke="#f59e0b"/>
+    <path class="tail" d="M15.5 13v14"/>
+    <path class="tail" d="M24 17.5v5" opacity="0.65"/>
+  </g>
+  <circle class="dot" cx="32.5" cy="20" r="1.7" opacity="0.4"/>
+</svg>
