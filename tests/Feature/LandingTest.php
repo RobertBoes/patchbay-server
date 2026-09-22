@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\App as ReverbApp;
+use App\Models\Metric;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
@@ -74,5 +76,62 @@ class LandingTest extends TestCase
     public function test_it_asks_not_to_be_indexed(): void
     {
         $this->get('/')->assertSee('noindex', escape: false);
+    }
+
+    protected function sample(ReverbApp $app, int $connections, int $messages, $at, string $server = 'ws-1'): void
+    {
+        Metric::create([
+            'app_id' => $app->id,
+            'server' => $server,
+            'connections' => $connections,
+            'messages_sent' => $messages,
+            'messages_received' => 0,
+            'recorded_at' => $at,
+        ]);
+    }
+
+    public function test_traffic_is_not_published_unless_asked_for(): void
+    {
+        $this->get('/')->assertOk()->assertDontSee('messages in the last day');
+    }
+
+    public function test_it_publishes_fleet_totals_when_asked(): void
+    {
+        config()->set('dashboard.landing.metrics', true);
+
+        $mine = ReverbApp::factory()->for(User::factory())->create(['name' => 'customer-portal']);
+        $theirs = ReverbApp::factory()->for(User::factory())->create();
+
+        $this->sample($mine, 4, 100, now()->subHours(3));
+        $this->sample($mine, 3, 20, now());
+        $this->sample($theirs, 5, 30, now());
+
+        $this->get('/')
+            ->assertOk()
+            ->assertSeeInOrder(['8', 'connections right now'])
+            ->assertSeeInOrder(['150', 'messages in the last day'])
+            ->assertDontSee('customer-portal');
+    }
+
+    public function test_a_signed_in_visitor_sees_the_same_totals_as_anyone(): void
+    {
+        config()->set('dashboard.landing.metrics', true);
+
+        $visitor = User::factory()->create();
+        $this->sample(ReverbApp::factory()->for($visitor)->create(), 1, 0, now());
+        $this->sample(ReverbApp::factory()->for(User::factory())->create(), 6, 0, now());
+
+        $this->actingAs($visitor)
+            ->get('/')
+            ->assertSeeInOrder(['7', 'connections right now']);
+    }
+
+    public function test_a_server_that_stopped_reporting_holds_no_connections_now(): void
+    {
+        config()->set('dashboard.landing.metrics', true);
+
+        $this->sample(ReverbApp::factory()->create(), 40, 0, now()->subMinutes(30));
+
+        $this->get('/')->assertSeeInOrder(['0', 'connections right now']);
     }
 }

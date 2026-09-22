@@ -6,6 +6,7 @@ use App\Models\User;
 use Filament\Auth\Notifications\VerifyEmail;
 use Filament\Auth\Pages\Register;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -80,5 +81,16 @@ class RegistrationTest extends TestCase
         config()->set('dashboard.access.admins', [$admin->email]);
 
         $this->actingAs($admin)->get('/admin')->assertOk();
+    }
+
+    public function test_the_landing_page_invites_sign_ups_and_states_the_free_tier(): void
+    {
+        config()->set('dashboard.quotas', ['enabled' => true, 'apps' => 10, 'connections' => 10]);
+        Http::fake(['*' => Http::response('', 200)]);
+
+        $this->get('/')
+            ->assertSee('Create a free account')
+            ->assertSee(filament()->getPanel('admin')->getRegistrationUrl())
+            ->assertSee('Free accounts get 10 applications with up to 10 connections each.');
     }
 }

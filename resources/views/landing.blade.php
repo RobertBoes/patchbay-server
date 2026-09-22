@@ -111,6 +111,23 @@
         a.primary { background: var(--ink); color: var(--bg); }
         a.secondary { border-color: var(--line); color: var(--ink); }
 
+        .offer { margin: 14px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+
+        .activity { margin-top: 30px; padding-top: 26px; border-top: 1px solid var(--line); }
+
+        .figures { display: flex; flex-wrap: wrap; gap: 14px 36px; }
+        .figure { display: grid; gap: 2px; }
+        .figure strong { font-size: 20px; font-weight: 600; letter-spacing: -0.015em; font-variant-numeric: tabular-nums; }
+        .figure span { color: var(--muted); font-size: 13px; }
+
+        .chart { display: block; width: 100%; height: 56px; margin-top: 18px; color: var(--accent); }
+        .chart-axis { display: flex; justify-content: space-between; margin-top: 6px; color: var(--muted); font-size: 13px; }
+
+        footer { margin-top: 26px; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; }
+        footer a { color: var(--muted); text-decoration: none; }
+        footer a:hover { color: var(--ink); }
+        footer a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
         @media (max-width: 380px) {
             .card { padding: 32px 24px 26px; }
         }
@@ -129,13 +146,75 @@
 
         <p class="status {{ $health->value }}"><span class="dot"></span>{{ $health->label() }}</p>
 
-        <div class="actions">
-            <a class="button primary" href="{{ route('filament.admin.pages.dashboard') }}">{{ __('Open dashboard') }}</a>
+        @if ($activity)
+            @php
+                $peak = max(1, max($activity['hourly']));
+                $barWidth = 8;
+                $gap = 2;
+            @endphp
 
-            @if ($docs = config('dashboard.landing.docs_url'))
-                <a class="button secondary" href="{{ $docs }}" rel="noreferrer noopener">{{ __('Docs') }}</a>
+            <section class="activity" aria-label="{{ __('Traffic') }}">
+                <div class="figures">
+                    <p class="figure" style="margin: 0;">
+                        <strong>{{ number_format($activity['connections']) }}</strong>
+                        <span>{{ trans_choice('connection right now|connections right now', $activity['connections']) }}</span>
+                    </p>
+                    <p class="figure" style="margin: 0;">
+                        <strong>{{ \Illuminate\Support\Number::abbreviate($activity['messages'], maxPrecision: 1) }}</strong>
+                        <span>{{ __('messages in the last day') }}</span>
+                    </p>
+                </div>
+
+                <svg
+                    class="chart"
+                    viewBox="0 0 {{ 24 * ($barWidth + $gap) - $gap }} 56"
+                    preserveAspectRatio="none"
+                    role="img"
+                    aria-label="{{ __('Messages per hour over the last day, peaking at :peak.', ['peak' => number_format(max($activity['hourly']))]) }}"
+                >
+                    @foreach ($activity['hourly'] as $hour => $messages)
+                        @php $height = $messages === 0 ? 1.5 : max(3, 56 * $messages / $peak); @endphp
+                        <rect
+                            x="{{ $hour * ($barWidth + $gap) }}"
+                            y="{{ 56 - $height }}"
+                            width="{{ $barWidth }}"
+                            height="{{ $height }}"
+                            rx="1.5"
+                            fill="currentColor"
+                            opacity="{{ $messages === 0 ? 0.25 : 1 }}"
+                        />
+                    @endforeach
+                </svg>
+                <div class="chart-axis" aria-hidden="true">
+                    <span>{{ __('24 hours ago') }}</span>
+                    <span>{{ __('now') }}</span>
+                </div>
+            </section>
+        @endif
+
+        <div class="actions">
+            @if ($panel->hasRegistration())
+                <a class="button primary" href="{{ $panel->getRegistrationUrl() }}">{{ __('Create a free account') }}</a>
+                <a class="button secondary" href="{{ $panel->getLoginUrl() }}">{{ __('Sign in') }}</a>
+            @else
+                <a class="button primary" href="{{ route('filament.admin.pages.dashboard') }}">{{ __('Open dashboard') }}</a>
             @endif
         </div>
+
+        @if ($panel->hasRegistration() && config('dashboard.quotas.enabled'))
+            <p class="offer">
+                {{ __('Free accounts get :apps applications with up to :connections connections each.', [
+                    'apps' => config('dashboard.quotas.apps'),
+                    'connections' => config('dashboard.quotas.connections'),
+                ]) }}
+            </p>
+        @endif
+
+        @if ($docs = config('dashboard.landing.docs_url'))
+            <footer>
+                <a href="{{ $docs }}" rel="noreferrer noopener">{{ __('Documentation') }}</a>
+            </footer>
+        @endif
     </main>
 </body>
 </html>

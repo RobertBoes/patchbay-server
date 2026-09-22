@@ -35,6 +35,7 @@
         <!-- Pinned so a developer's own .env cannot change what the panel does under test. -->
         <env name="DASHBOARD_DOMAIN" value=""/>
         <env name="DASHBOARD_LANDING" value="true"/>
+        <env name="DASHBOARD_LANDING_METRICS" value="false"/>
         <env name="DASHBOARD_ALLOWED_EMAILS" value=""/>
         <env name="DASHBOARD_ADMINS" value=""/>
         <env name="DASHBOARD_REGISTRATION" value="false"/>

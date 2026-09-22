@@ -43,8 +43,9 @@ return [
     | told where to look.
     |
     | The page reports whether the WebSocket server is answering, because
-    | that is the one question a public status page exists to answer. It
-    | reports nothing else — no application names, no counts, no addresses.
+    | that is the one question a public status page exists to answer. Unless
+    | metrics are turned on it reports nothing else, and even then only
+    | fleet-wide totals: no application names, no counts, no addresses.
     |
     */
 
@@ -57,6 +58,12 @@ return [
 
         // Optional "Docs" link. Omitted from the page when empty.
         'docs_url' => env('DASHBOARD_DOCS_URL', 'https://github.com/RobertBoes/patchbay'),
+
+        // Fleet-wide traffic: connections right now, messages over the last
+        // day, and a chart of it. Totals only, never an application's name
+        // or share, but still more than a private deployment may want to
+        // publish, so it is off unless asked for.
+        'metrics' => (bool) env('DASHBOARD_LANDING_METRICS', false),
 
     ],
 
