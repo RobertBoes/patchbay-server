@@ -7,6 +7,8 @@ use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Livewire\Livewire;
+use RobertBoes\Patchbay\Filament\Resources\AppResource\Pages\CreateApp;
 use Tests\TestCase;
 
 class QuotaTest extends TestCase
@@ -62,6 +64,32 @@ class QuotaTest extends TestCase
         $this->actingAs(User::factory()->create())
             ->get('/admin/apps')
             ->assertDontSee('applications used');
+    }
+
+    public function test_the_form_shows_the_connection_cap(): void
+    {
+        $this->actingAs(User::factory()->create())
+            ->get('/admin/apps/create')
+            ->assertSee('Up to 10.');
+    }
+
+    public function test_a_limit_reached_in_another_tab_is_explained(): void
+    {
+        $user = User::factory()->create();
+        App::factory()->for($user)->create();
+
+        $page = Livewire::actingAs($user)->test(CreateApp::class);
+
+        App::factory()->for($user)->create();
+
+        $page->fillForm(['name' => 'one too many'])
+            ->call('create')
+            ->assertDispatched(
+                'notificationSent',
+                fn (string $event, array $params): bool => $params['notification']['title'] === 'You are using all 2 of your applications.',
+            );
+
+        $this->assertSame(2, $user->apps()->count());
     }
 
     public function test_an_override_raises_a_users_limit(): void

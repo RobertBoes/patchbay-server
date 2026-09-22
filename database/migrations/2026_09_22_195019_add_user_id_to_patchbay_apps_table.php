@@ -10,8 +10,8 @@ return new class extends Migration
     {
         Schema::table(config('patchbay.table', 'patchbay_apps'), function (Blueprint $table) {
             // Nullable: applications made with `patchbay:app` belong to no one.
-            // ponytail: the cascade skips model events, so a deleted user's apps
-            // keep serving until the server's next reconcile (reload.reconcile_every).
+            // Users delete their applications through the model first, so the
+            // server hears at once; the cascade is only the backstop.
             $table->foreignId('user_id')->nullable()->constrained()->cascadeOnDelete();
         });
     }

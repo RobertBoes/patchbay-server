@@ -3,6 +3,7 @@
 namespace App\Policies;
 
 use App\Models\User;
+use Illuminate\Auth\Access\Response;
 
 /**
  * Only creation is limited. Filament allows any ability without a method
@@ -10,10 +11,18 @@ use App\Models\User;
  */
 class AppPolicy
 {
-    public function create(User $user): bool
+    public function create(User $user): Response
     {
         $limit = $user->appLimit();
 
-        return $limit === null || $user->apps()->count() < $limit;
+        if ($limit === null || $user->apps()->count() < $limit) {
+            return Response::allow();
+        }
+
+        return Response::deny(trans_choice(
+            'You are using your one application.|You are using all :limit of your applications.',
+            $limit,
+            ['limit' => $limit],
+        ));
     }
 }

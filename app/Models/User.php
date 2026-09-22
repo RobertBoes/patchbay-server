@@ -10,6 +10,7 @@ use Filament\Panel;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -35,6 +36,7 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
             'password' => 'hashed',
             'app_authentication_secret' => 'encrypted',
             'app_authentication_recovery_codes' => 'encrypted:array',
+            'disabled_at' => 'datetime',
             'app_limit' => 'integer',
             'connection_limit' => 'integer',
         ];
@@ -51,11 +53,56 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
         return $user instanceof self ? $user : null;
     }
 
+    protected static function booted(): void
+    {
+        // Through the model rather than the foreign key's cascade, so the
+        // server drops the applications at once instead of at its next
+        // reconcile.
+        static::deleting(function (User $user): void {
+            $user->ownedApps()->get()->each->delete();
+        });
+    }
+
     public function canAccessPanel(Panel $panel): bool
     {
+        if ($this->isDisabled()) {
+            return false;
+        }
+
         $allowed = config('dashboard.access.emails');
 
         return empty($allowed) || $this->isListedIn($allowed);
+    }
+
+    public function isDisabled(): bool
+    {
+        return $this->disabled_at !== null;
+    }
+
+    /**
+     * Locks the account out and takes its applications offline. They stay
+     * inactive when the account is enabled again; the owner decides which to
+     * turn back on.
+     */
+    public function disable(): void
+    {
+        $this->forceFill(['disabled_at' => now()])->save();
+
+        $this->ownedApps()->where('active', true)->get()->each->update(['active' => false]);
+    }
+
+    public function enable(): void
+    {
+        $this->forceFill(['disabled_at' => null])->save();
+    }
+
+    /**
+     * Every application this user owns, whoever is signed in. apps() would
+     * narrow to what the signed-in user may see.
+     */
+    protected function ownedApps(): Builder
+    {
+        return App::withoutGlobalScopes()->whereBelongsTo($this);
     }
 
     /**
