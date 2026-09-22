@@ -10,6 +10,7 @@ use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use SensitiveParameter;
@@ -33,6 +34,8 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
             'password' => 'hashed',
             'app_authentication_secret' => 'encrypted',
             'app_authentication_recovery_codes' => 'encrypted:array',
+            'app_limit' => 'integer',
+            'connection_limit' => 'integer',
         ];
     }
 
@@ -61,6 +64,37 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
     public function isAdmin(): bool
     {
         return $this->isListedIn(config('dashboard.access.admins'));
+    }
+
+    public function apps(): HasMany
+    {
+        return $this->hasMany(App::class);
+    }
+
+    /**
+     * How many applications this user may have. Null is unlimited.
+     */
+    public function appLimit(): ?int
+    {
+        return $this->quota($this->app_limit, 'apps');
+    }
+
+    /**
+     * The most connections each of this user's applications may hold. Null
+     * is unlimited.
+     */
+    public function connectionLimit(): ?int
+    {
+        return $this->quota($this->connection_limit, 'connections');
+    }
+
+    protected function quota(?int $override, string $name): ?int
+    {
+        if (! config('dashboard.quotas.enabled') || $this->isAdmin()) {
+            return null;
+        }
+
+        return $override ?? (int) config("dashboard.quotas.{$name}");
     }
 
     /**

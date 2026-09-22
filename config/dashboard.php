@@ -94,6 +94,32 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Quotas
+    |--------------------------------------------------------------------------
+    |
+    | Limits for everyone who is not an admin, for a dashboard open to people
+    | you do not know. Off, every account is unlimited, which is what a
+    | deployment for yourself or your team wants.
+    |
+    | The connection limit applies to each application, not to the account as
+    | a whole: Reverb enforces it per application, so no bookkeeping is needed
+    | to make it stick. A user's `app_limit` and `connection_limit` columns
+    | override these when set.
+    |
+    */
+
+    'quotas' => [
+
+        'enabled' => (bool) env('DASHBOARD_QUOTAS', false),
+
+        'apps' => (int) env('DASHBOARD_QUOTA_APPS', 10),
+
+        'connections' => (int) env('DASHBOARD_QUOTA_CONNECTIONS', 10),
+
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Two-Factor Authentication
     |--------------------------------------------------------------------------
     |
