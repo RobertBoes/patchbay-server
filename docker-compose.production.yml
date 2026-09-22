@@ -1,0 +1,110 @@
+# Production stack for a host that already runs a reverse proxy on a shared
+# external `proxy` network (see deploy/caddy/patchbay.caddy for the Caddy
+# side). The proxy terminates TLS and routes two hostnames:
+#
+#   DASHBOARD_DOMAIN  -> patchbay:8080          the panel and landing page
+#   PATCHBAY_HOST     -> patchbay-reverb:8080   the WebSocket server
+#
+# CI builds the image and pushes it to a registry; the server only pulls.
+# The .env beside this file provides PATCHBAY_IMAGE for interpolation, and
+# everything the application reads.
+#
+# Only the web and Reverb services join `proxy`, under names specific enough
+# to share that network with other stacks. Everything else stays internal.
+
+x-app: &app
+  image: ${PATCHBAY_IMAGE:-ghcr.io/robertboes/patchbay-server:latest}
+  restart: unless-stopped
+  env_file: .env
+  stop_signal: SIGTERM
+  stop_grace_period: 30s
+  volumes:
+    - storage_logs:/var/www/html/storage/logs
+  depends_on:
+    pgsql:
+      condition: service_healthy
+
+services:
+  patchbay:
+    <<: *app
+    # The serversideup image's own healthcheck curls HEALTHCHECK_PATH (/up),
+    # and migrations run before nginx listens, so healthy also means migrated.
+    environment:
+      AUTORUN_ENABLED: "true"
+      AUTORUN_LARAVEL_MIGRATION: "true"
+    networks:
+      - proxy
+      - internal
+
+  reverb:
+    <<: *app
+    command: ["php", "/var/www/html/artisan", "reverb:start", "--host=0.0.0.0", "--port=8080"]
+    environment:
+      AUTORUN_ENABLED: "false"
+    networks:
+      proxy:
+        aliases:
+          - patchbay-reverb
+      internal: null
+    healthcheck:
+      test: ["CMD", "healthcheck-reverb"]
+      interval: 30s
+      start_period: 10s
+      timeout: 5s
+      retries: 3
+
+  # Sends the email-verification mail when registration is open, among
+  # anything else that is queued.
+  queue:
+    <<: *app
+    command: ["php", "/var/www/html/artisan", "queue:work", "--tries=3"]
+    environment:
+      AUTORUN_ENABLED: "false"
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "healthcheck-queue"]
+      interval: 30s
+      start_period: 10s
+      timeout: 5s
+      retries: 3
+
+  # Prunes metrics daily.
+  scheduler:
+    <<: *app
+    command: ["php", "/var/www/html/artisan", "schedule:work"]
+    environment:
+      AUTORUN_ENABLED: "false"
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "healthcheck-schedule"]
+      interval: 60s
+      start_period: 10s
+      timeout: 5s
+      retries: 3
+
+  pgsql:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pgsql_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  storage_logs:
+  pgsql_data:
+
+networks:
+  proxy:
+    external: true
+  internal:

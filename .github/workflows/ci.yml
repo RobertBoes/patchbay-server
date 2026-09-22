@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+# Temporary, until robertboes/patchbay is on Packagist: composer.json takes
+# the package from ../patchbay, so both repositories are checked out side by
+# side and the package is handed to the image build as a named context.
+env:
+  PATCHBAY_REF: dev
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: server
+
+      - uses: actions/checkout@v6
+        with:
+          repository: RobertBoes/patchbay
+          ref: ${{ env.PATCHBAY_REF }}
+          path: patchbay
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: intl, bcmath, pdo_sqlite
+          coverage: none
+
+      - run: composer install --no-interaction --no-progress --prefer-dist
+
+      - run: cp .env.example .env && php artisan key:generate
+
+      - run: vendor/bin/pint --test
+
+      - run: php artisan test
+
+  image:
+    # Published from main and from version tags; every other push only tests.
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    needs: tests
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: server
+
+      - uses: actions/checkout@v6
+        with:
+          repository: RobertBoes/patchbay
+          ref: ${{ env.PATCHBAY_REF }}
+          path: patchbay
+
+      # arm64 is emulated. Slow, but one job; split into native runners per
+      # platform and merge the manifests if build time starts to matter.
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: server
+          build-contexts: patchbay=patchbay
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

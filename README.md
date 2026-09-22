@@ -4,18 +4,64 @@ A deployable Reverb control plane: a Laravel app running
 [Patchbay](https://github.com/RobertBoes/patchbay), so WebSocket applications live in
 the database and can be changed while the server is running.
 
+## Getting the code
+
+Until the Patchbay package is published, this application takes it from a
+checkout beside its own, so clone both next to each other:
+
+```
+git clone https://github.com/RobertBoes/patchbay
+git clone https://github.com/RobertBoes/patchbay-server
+```
+
+## Running it locally with Docker
+
+```
+cd patchbay-server
+docker compose up -d
+```
+
+That builds the image and starts the dashboard, the Reverb server, a queue
+worker, the scheduler, Postgres and Caddy. The dashboard is at
+https://patchbay.localhost and the WebSocket server at wss://ws.patchbay.localhost;
+both names reach your machine without a hosts file.
+
+Caddy serves them with certificates from its own local authority. Trust it once,
+or the browser will warn about the dashboard and silently refuse the WebSocket:
+
+```
+docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt caddy-root.crt
+# macOS
+sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain caddy-root.crt
+# Debian/Ubuntu
+sudo cp caddy-root.crt /usr/local/share/ca-certificates/ && sudo update-ca-certificates
+```
+
+Then make yourself an account, an admin one so every application is visible:
+
+```
+PATCHBAY_ADMIN_EMAIL=you@example.com docker compose up -d
+docker compose exec app php artisan make:filament-user
+```
+
+Port 443 already taken, by Valet or Herd for instance? Run with
+`PATCHBAY_HTTPS_PORT=8443` and add `:8443` to both addresses.
+
+This stack is for trying Patchbay out: its `APP_KEY` is in the compose file for
+anyone to read. Deploy with the production one below.
+
 ## Local setup
 
 ```
 composer install
 cp .env.example .env && php artisan key:generate
 php artisan migrate
-php artisan patchbay:app my-app
+php artisan patchbay:create-app my-app
 php artisan reverb:start --debug
 ```
 
 Each application belongs to the user who made it, and users see only their own.
-Applications made with `patchbay:app` belong to no one, so they show up only for
+Applications made with `patchbay:create-app` belong to no one, so they show up only for
 the addresses in `DASHBOARD_ADMINS`, who see every application.
 
 The cache store must be shared between the web process and the Reverb server, since
@@ -72,6 +118,26 @@ server {
 The WebSocket block's read timeout matters. A connection that is doing its job
 sends nothing for minutes at a time, and a proxy that treats silence as death
 closes connections the server was quite happy with.
+
+## Deploying with Docker
+
+`docker-compose.production.yml` runs the same image as five services: the
+dashboard, the Reverb server, a queue worker, the scheduler and Postgres. It
+expects a reverse proxy in front that terminates TLS and joins a shared external
+Docker network called `proxy`; only the dashboard (`patchbay`) and the Reverb
+server (`patchbay-reverb`) are on it.
+
+1. Copy `.env.production.example` to `.env` beside the compose file on the server
+   and fill in everything marked `CHANGE`.
+2. Point your proxy at the two services. `deploy/caddy/patchbay.caddy` is a site
+   file for Caddy, including Cloudflare Authenticated Origin Pulls.
+3. `docker compose -f docker-compose.production.yml up -d`. Migrations run as the
+   dashboard container starts.
+4. `docker compose -f docker-compose.production.yml exec patchbay php artisan make:filament-user`,
+   with that address in `DASHBOARD_ADMINS`.
+
+CI builds the image for amd64 and arm64 and publishes it to
+`ghcr.io/robertboes/patchbay-server` from `main` and from version tags.
 
 ## The public page
 

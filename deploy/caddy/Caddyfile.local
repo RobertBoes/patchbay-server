@@ -1,0 +1,14 @@
+# Local HTTPS for docker-compose.yml. Caddy issues certificates from its own
+# local CA; trust that once (see the README) and both names work in a browser,
+# WebSockets included.
+{
+	local_certs
+}
+
+patchbay.localhost {
+	reverse_proxy app:8080
+}
+
+ws.patchbay.localhost {
+	reverse_proxy reverb:8080
+}
