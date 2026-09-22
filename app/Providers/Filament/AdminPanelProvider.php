@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Models\User;
 use Filament\Auth\MultiFactor\App\AppAuthentication;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -11,6 +12,7 @@ use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -18,6 +20,7 @@ use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use RobertBoes\Patchbay\Filament\PatchbayPlugin;
+use RobertBoes\Patchbay\Filament\Resources\AppResource\Pages\ListApps;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -29,6 +32,10 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->domain(config('dashboard.domain'))
             ->login()
+            ->when(
+                config('dashboard.registration'),
+                fn (Panel $panel): Panel => $panel->registration()->emailVerification(),
+            )
             ->profile(isSimple: false)
             ->multiFactorAuthentication(
                 AppAuthentication::make()
@@ -65,6 +72,11 @@ class AdminPanelProvider extends PanelProvider
                 DispatchServingFilamentEvent::class,
             ])
             ->plugin(PatchbayPlugin::make()->widgets())
+            ->renderHook(
+                PanelsRenderHook::RESOURCE_PAGES_LIST_RECORDS_TABLE_BEFORE,
+                fn (): string => view('components.quota', ['user' => User::current()])->render(),
+                scopes: ListApps::class,
+            )
             ->authMiddleware([
                 Authenticate::class,
             ]);

@@ -65,13 +65,14 @@ return [
     | Panel Access
     |--------------------------------------------------------------------------
     |
-    | Who may sign in, over and above holding valid credentials. There is no
-    | registration route — accounts are made with `php artisan make:filament-user`
-    | — so an empty allowlist still means "the people already in the users
-    | table", not "anyone".
+    | Who may sign in, over and above holding valid credentials. Accounts are
+    | made with `php artisan make:filament-user`, or by signing up when
+    | registration is open.
     |
-    | Filling it in adds a second gate that a stray database row cannot pass:
-    | a comma-separated list of the addresses allowed to reach the panel.
+    | Filling in the allowlist adds a second gate that a stray database row
+    | cannot pass: a comma-separated list of the addresses allowed to reach
+    | the panel. It applies to people who sign up too, so an open dashboard
+    | leaves it empty.
     |
     */
 
@@ -91,6 +92,23 @@ return [
         ))),
 
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Registration
+    |--------------------------------------------------------------------------
+    |
+    | Whether anyone may sign up. Open, new accounts confirm their address
+    | before they reach the panel; admins never have to, so turning this on
+    | cannot lock out an operator whose account was made from the CLI.
+    |
+    | The confirmation email is queued, so run a queue worker, or sign-ups
+    | wait at the prompt forever. Pair it with quotas: an open dashboard with
+    | none hands every stranger an unlimited Reverb application.
+    |
+    */
+
+    'registration' => (bool) env('DASHBOARD_REGISTRATION', false),
 
     /*
     |--------------------------------------------------------------------------

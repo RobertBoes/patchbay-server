@@ -6,6 +6,7 @@ use App\Models\App;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class QuotaTest extends TestCase
@@ -18,6 +19,9 @@ class QuotaTest extends TestCase
 
         config()->set('dashboard.quotas', ['enabled' => true, 'apps' => 2, 'connections' => 10]);
         config()->set('patchbay.defaults.max_message_size', 10_000);
+
+        Http::preventStrayRequests();
+        Http::fake(['*' => Http::response('', 200)]);
     }
 
     public function test_a_user_cannot_create_past_their_application_limit(): void
@@ -39,6 +43,25 @@ class QuotaTest extends TestCase
         App::factory()->for($user)->count(2)->create();
 
         $this->actingAs($user)->get('/admin/apps/create')->assertForbidden();
+    }
+
+    public function test_the_application_list_shows_what_is_left(): void
+    {
+        $user = User::factory()->create();
+        App::factory()->for($user)->create();
+
+        $this->actingAs($user)
+            ->get('/admin/apps')
+            ->assertSee('1 of 2 applications used · up to 10 connections each');
+    }
+
+    public function test_the_application_list_says_nothing_while_quotas_are_off(): void
+    {
+        config()->set('dashboard.quotas.enabled', false);
+
+        $this->actingAs(User::factory()->create())
+            ->get('/admin/apps')
+            ->assertDontSee('applications used');
     }
 
     public function test_an_override_raises_a_users_limit(): void

@@ -32,5 +32,13 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <!-- Pinned so a developer's own .env cannot change what the panel does under test. -->
+        <env name="DASHBOARD_DOMAIN" value=""/>
+        <env name="DASHBOARD_LANDING" value="true"/>
+        <env name="DASHBOARD_ALLOWED_EMAILS" value=""/>
+        <env name="DASHBOARD_ADMINS" value=""/>
+        <env name="DASHBOARD_REGISTRATION" value="false"/>
+        <env name="DASHBOARD_QUOTAS" value="false"/>
+        <env name="DASHBOARD_REQUIRE_MFA" value="false"/>
     </php>
 </phpunit>

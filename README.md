@@ -93,7 +93,7 @@ Turn it off entirely with `DASHBOARD_LANDING=false`, and the root becomes a
 | `SESSION_SECURE_COOKIE` | `true` anywhere the dashboard is served over https. |
 | `SESSION_DOMAIN` | Leave `null`. Widening it to `.my-ws-server.com` would hand the session cookie to the WebSocket hostname as well. |
 
-There is no registration route. Accounts are made on the server:
+By default there is no registration route. Accounts are made on the server:
 
 ```
 php artisan make:filament-user
@@ -101,3 +101,25 @@ php artisan make:filament-user
 
 Sign-ins are throttled at five attempts a minute per address, and in
 production every URL the application generates is https.
+
+## Opening it to others
+
+A deployment can be run as a service strangers sign up to, with limits on
+what each of them gets. All of it is off by default.
+
+| | |
+|---|---|
+| `DASHBOARD_REGISTRATION` | Lets anyone sign up. New accounts confirm their address before they reach the panel. |
+| `DASHBOARD_QUOTAS` | Holds everyone but admins to `DASHBOARD_QUOTA_APPS` applications and `DASHBOARD_QUOTA_CONNECTIONS` connections per application. A user's `app_limit` and `connection_limit` columns override those for that one account. |
+| `DASHBOARD_ADMINS` | Addresses that see every application, are never limited, and never have to confirm their address — so opening registration cannot lock out an operator made from the CLI. |
+
+The confirmation email is queued, so an open deployment needs a worker
+running alongside the web and Reverb processes, or sign-ups wait forever:
+
+```
+php artisan queue:work
+```
+
+The connection limit is Reverb's own, and Reverb counts only connections
+subscribed to at least one channel. A socket that connects and never
+subscribes is not counted against it.
