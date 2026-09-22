@@ -36,15 +36,39 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
         ];
     }
 
+    /**
+     * The signed-in user, or null outside a request — the Reverb server, the
+     * CLI and the queue act on everyone's applications, not one user's.
+     */
+    public static function current(): ?self
+    {
+        $user = auth()->user();
+
+        return $user instanceof self ? $user : null;
+    }
+
     public function canAccessPanel(Panel $panel): bool
     {
         $allowed = config('dashboard.access.emails');
 
-        if (empty($allowed)) {
-            return true;
-        }
+        return empty($allowed) || $this->isListedIn($allowed);
+    }
 
-        return collect($allowed)->contains(
+    /**
+     * Admins see every application, including those made from the CLI,
+     * which belong to no one.
+     */
+    public function isAdmin(): bool
+    {
+        return $this->isListedIn(config('dashboard.access.admins'));
+    }
+
+    /**
+     * @param  array<int, string>  $emails
+     */
+    protected function isListedIn(array $emails): bool
+    {
+        return collect($emails)->contains(
             fn (string $email): bool => strcasecmp($email, $this->email) === 0,
         );
     }

@@ -2,12 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Models\App as ReverbApp;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 use RobertBoes\Patchbay\Filament\Resources\AppResource\Pages\ViewApp;
-use RobertBoes\Patchbay\Models\App as ReverbApp;
 use Tests\TestCase;
 
 /**
@@ -175,7 +176,7 @@ class PanelSmokeTest extends TestCase
 
     public function test_an_unreachable_server_is_named_as_such(): void
     {
-        Http::fake(fn () => throw new \Illuminate\Http\Client\ConnectionException('refused'));
+        Http::fake(fn () => throw new ConnectionException('refused'));
 
         $app = ReverbApp::create(['name' => 'orphaned']);
 

@@ -1,6 +1,7 @@
 <?php
 
-use RobertBoes\Patchbay\Models\App;
+use App\Models\App;
+use App\Models\Metric;
 use RobertBoes\Patchbay\Reload\CacheReloadDriver;
 use RobertBoes\Patchbay\Reload\NullReloadDriver;
 use RobertBoes\Patchbay\Sources\EloquentAppSource;
@@ -128,6 +129,45 @@ return [
         'port' => env('PATCHBAY_PORT', env('REVERB_PORT', 443)),
         'scheme' => env('PATCHBAY_SCHEME', env('REVERB_SCHEME', 'https')),
         'useTLS' => env('PATCHBAY_SCHEME', env('REVERB_SCHEME', 'https')) === 'https',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Metrics
+    |--------------------------------------------------------------------------
+    |
+    | Samples what each application is doing, recorded from inside the running
+    | server. Connection and channel counts are already in memory there, and
+    | message throughput exists nowhere else — the HTTP API does not report it.
+    |
+    | Messages are counted in memory and written once per interval, so the
+    | database never sits on the path of an individual frame.
+    |
+    */
+
+    'metrics' => [
+
+        'enabled' => env('PATCHBAY_METRICS_ENABLED', true),
+
+        'model' => Metric::class,
+
+        'table' => 'patchbay_metrics',
+
+        // Which server a sample came from. Every Reverb server records on its
+        // own timer, so a fleet reading is the latest sample from each of
+        // them. Defaults to the machine's hostname, which is enough unless
+        // you run more than one server per host.
+        'server' => env('PATCHBAY_SERVER_NAME'),
+
+        // How often a sample is written, in seconds. Shorter gives a finer
+        // graph and more rows; an application recorded every minute produces
+        // about 43,000 rows a month.
+        'interval' => env('PATCHBAY_METRICS_INTERVAL', 60),
+
+        // Samples older than this are removed by `patchbay:prune-metrics`.
+        // Set to null to keep them forever.
+        'retain_days' => env('PATCHBAY_METRICS_RETAIN_DAYS', 7),
+
     ],
 
 ];

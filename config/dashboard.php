@@ -82,6 +82,14 @@ return [
             explode(',', (string) env('DASHBOARD_ALLOWED_EMAILS', '')),
         ))),
 
+        // Everyone else sees only the applications they made. Admins see
+        // all of them, including those made with `patchbay:app`, which
+        // belong to no one.
+        'admins' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('DASHBOARD_ADMINS', '')),
+        ))),
+
     ],
 
     /*

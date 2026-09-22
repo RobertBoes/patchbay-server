@@ -14,6 +14,10 @@ php artisan patchbay:app my-app
 php artisan reverb:start --debug
 ```
 
+Each application belongs to the user who made it, and users see only their own.
+Applications made with `patchbay:app` belong to no one, so they show up only for
+the addresses in `DASHBOARD_ADMINS`, who see every application.
+
 The cache store must be shared between the web process and the Reverb server, since
 that is how application changes reach the running server. `database` (the default
 here) and `redis` both work; `array` does not.

@@ -2,10 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\App as ReverbApp;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
-use RobertBoes\Patchbay\Models\App as ReverbApp;
 use Tests\TestCase;
 
 /**
