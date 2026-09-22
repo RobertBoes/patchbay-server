@@ -1,9 +1,9 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "robertboes/patchbay-server",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "description": "A deployable Reverb control plane: WebSocket applications in a database, managed from a dashboard, changed while the server runs.",
+    "keywords": ["laravel", "reverb", "websockets", "pusher", "filament"],
     "license": "MIT",
     "require": {
         "php": "^8.3",

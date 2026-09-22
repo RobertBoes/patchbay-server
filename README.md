@@ -4,6 +4,20 @@ A deployable Reverb control plane: a Laravel app running
 [Patchbay](https://github.com/RobertBoes/patchbay), so WebSocket applications live in
 the database and can be changed while the server is running.
 
+- **Applications as data.** Create, deactivate, rotate secrets and change limits from
+  the dashboard; the running Reverb server picks changes up in seconds, no restart.
+- **Connect anything.** Each application hands out a Laravel `.env`, a pusher-js client
+  and a Pusher server SDK snippet. Reverb speaks the Pusher protocol, so any Pusher
+  client works.
+- **A debug console.** Send an event to a channel and watch it arrive, before anything
+  is wired up.
+- **Traffic.** Messages and connections per application and for the whole server,
+  recorded from inside Reverb.
+- **Health that means it.** The server reports what it is actually serving, so one
+  that answers but holds no applications reads as degraded, not operational.
+- **Open to others, if you like.** Sign-ups with email confirmation, per-account quotas,
+  and a users page to adjust or disable accounts. All off by default.
+
 ## Getting the code
 
 Until the Patchbay package is published, this application takes it from a
@@ -60,6 +74,9 @@ php artisan patchbay:create-app my-app
 php artisan reverb:start --debug
 ```
 
+Run `php artisan queue:work` and `php artisan schedule:work` beside them for
+queued mail and the daily metrics pruning.
+
 Each application belongs to the user who made it, and users see only their own.
 Applications made with `patchbay:create-app` belong to no one, so they show up only for
 the addresses in `DASHBOARD_ADMINS`, who see every application.
@@ -83,9 +100,12 @@ Anything arriving by the WebSocket name gets a 404 instead of a login form, so
 a misdirected request cannot find the control plane by accident. Leave it
 empty — as a local install does — and the panel answers on every hostname.
 
-`PATCHBAY_HOST` is what goes in the `.env` snippet each application is given.
+`PATCHBAY_HOST` (with `PATCHBAY_PORT` and `PATCHBAY_SCHEME`) is what goes in the
+snippets each application is given, falling back to `REVERB_HOST` and friends.
 It describes how the outside world reaches the server, not how the server
-binds; `REVERB_SERVER_HOST` and `REVERB_SERVER_PORT` decide that.
+binds; `REVERB_SERVER_HOST` and `REVERB_SERVER_PORT` decide that. When the
+dashboard cannot reach the server by that public address, as inside Docker,
+`PATCHBAY_SERVER_URL` says where it can.
 
 Both names point at the same machine. Terminate TLS in front of it and route
 by name: the WebSocket name to the Reverb server's port, the dashboard name to
@@ -141,10 +161,14 @@ CI builds the image for amd64 and arm64 and publishes it to
 
 ## The public page
 
-`/` serves a page naming the service, reporting whether the WebSocket server
-is answering, and linking to the dashboard. It says nothing about the
-applications the server is carrying — no names, no counts, no addresses — so
-it is safe to leave open.
+`/` serves a page naming the service, reporting whether the WebSocket server is
+healthy, and linking to the dashboard, or, with registration open, to sign-up and
+sign-in, stating the free tier when quotas apply.
+
+It says nothing about the applications the server is carrying. With
+`DASHBOARD_LANDING_METRICS=true` it also shows fleet-wide traffic: connections right
+now, messages over the last day, and an hourly chart. Totals only, never an
+application's name or share.
 
 Turn it off entirely with `DASHBOARD_LANDING=false`, and the root becomes a
 404 like anything else that is not there.
@@ -176,8 +200,13 @@ what each of them gets. All of it is off by default.
 | | |
 |---|---|
 | `DASHBOARD_REGISTRATION` | Lets anyone sign up. New accounts confirm their address before they reach the panel. |
-| `DASHBOARD_QUOTAS` | Holds everyone but admins to `DASHBOARD_QUOTA_APPS` applications and `DASHBOARD_QUOTA_CONNECTIONS` connections per application. A user's `app_limit` and `connection_limit` columns override those for that one account. |
-| `DASHBOARD_ADMINS` | Addresses that see every application, are never limited, and never have to confirm their address — so opening registration cannot lock out an operator made from the CLI. |
+| `DASHBOARD_QUOTAS` | Holds everyone but admins to `DASHBOARD_QUOTA_APPS` applications and `DASHBOARD_QUOTA_CONNECTIONS` connections per application. |
+| `DASHBOARD_ADMINS` | Addresses that see every application, are never limited, never have to confirm their address, and get the Users page. |
+| `PATCHBAY_RATE_LIMITING_ENABLED` | Reverb's own per-application message rate limit, tuned with `PATCHBAY_RATE_LIMIT_*`. Quotas cap connections, not how fast each one sends. |
+
+Admins manage accounts on the Users page: raise one account's application or
+connection limit, or disable it, which signs it out and takes its applications
+offline. Users can delete their own account from their profile.
 
 The confirmation email is queued, so an open deployment needs a worker
 running alongside the web and Reverb processes, or sign-ups wait forever:
@@ -189,3 +218,7 @@ php artisan queue:work
 The connection limit is Reverb's own, and Reverb counts only connections
 subscribed to at least one channel. A socket that connects and never
 subscribes is not counted against it.
+
+## License
+
+MIT. See [LICENSE.md](LICENSE.md).

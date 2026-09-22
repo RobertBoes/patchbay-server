@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "44e300f81d11f005fa71775663d5cce8",
+    "content-hash": "eb59f3bac5f4efd2832b9346d4e579cc",
     "packages": [
         {
             "name": "anourvalar/eloquent-serialize",
@@ -5884,12 +5884,14 @@
             "dist": {
                 "type": "path",
                 "url": "../patchbay",
-                "reference": "6f0cafef682bb0b4ba7e781b2c574c15ddc5161f"
+                "reference": "684f81f43b93110b6f200f734161e5fc24e35dd5"
             },
             "require": {
+                "illuminate/console": "^12.0 || ^13.0",
                 "illuminate/contracts": "^12.0 || ^13.0",
                 "illuminate/database": "^12.0 || ^13.0",
                 "illuminate/support": "^12.0 || ^13.0",
+                "laravel/prompts": "^0.3.0",
                 "laravel/reverb": "^1.9",
                 "php": "^8.2",
                 "spatie/laravel-package-tools": "^1.92.7"
