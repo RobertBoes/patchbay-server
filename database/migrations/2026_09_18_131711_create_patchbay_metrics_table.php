@@ -11,6 +11,7 @@ return new class extends Migration
         Schema::create(config('patchbay.metrics.table', 'patchbay_metrics'), function (Blueprint $table) {
             $table->id();
             $table->ulid('app_id');
+            $table->string('server')->nullable();
             $table->unsignedInteger('connections')->default(0);
             $table->unsignedInteger('channels')->default(0);
             $table->unsignedInteger('messages_sent')->default(0);
@@ -18,6 +19,7 @@ return new class extends Migration
             $table->timestamp('recorded_at');
 
             $table->index(['app_id', 'recorded_at']);
+            $table->index(['server', 'recorded_at']);
             $table->index('recorded_at');
         });
     }
