@@ -6,6 +6,7 @@ use App\Models\App as ReverbApp;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use RobertBoes\Patchbay\Server\Heartbeat;
 use Tests\TestCase;
 
 /**
@@ -31,16 +32,29 @@ class LandingTest extends TestCase
             ->assertSee(route('filament.admin.pages.dashboard'));
     }
 
-    public function test_it_reports_a_reachable_server_as_operational(): void
+    public function test_it_reports_a_server_serving_its_applications_as_operational(): void
     {
+        ReverbApp::create(['name' => 'serving']);
+        app(Heartbeat::class)->beat(1);
+
         $this->get('/')->assertOk()->assertSee('Operational');
+    }
+
+    public function test_it_reports_a_server_serving_nothing_as_degraded(): void
+    {
+        // The failure the HTTP check alone cannot see: answering, holding no
+        // applications, refusing every connection.
+        ReverbApp::create(['name' => 'stranded']);
+        app(Heartbeat::class)->beat(0);
+
+        $this->get('/')->assertOk()->assertSee('Degraded');
     }
 
     public function test_it_reports_an_unreachable_server_rather_than_pretending(): void
     {
         Http::fake(fn () => throw new ConnectionException('refused'));
 
-        $this->get('/')->assertOk()->assertSee('Server unreachable');
+        $this->get('/')->assertOk()->assertSee('Unreachable');
     }
 
     /**

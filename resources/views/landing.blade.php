@@ -26,6 +26,7 @@
             --muted: #78716c;
             --accent: #f59e0b;
             --ok: #059669;
+            --warn: #d97706;
             --down: #dc2626;
             --patchbay-accent: var(--accent);
         }
@@ -38,6 +39,7 @@
                 --ink: #fafaf9;
                 --muted: #a8a29e;
                 --ok: #34d399;
+                --warn: #fbbf24;
                 --down: #f87171;
             }
         }
@@ -85,7 +87,8 @@
         }
 
         .status .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
-        .status.up { color: var(--ok); }
+        .status.operational { color: var(--ok); }
+        .status.degraded { color: var(--warn); }
         .status.down { color: var(--down); }
 
         .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 30px; }
@@ -124,11 +127,7 @@
             {{ config('dashboard.landing.tagline') ?? __('A Reverb control plane. WebSocket applications live in the database and can be changed while the server is running.') }}
         </p>
 
-        @if ($running)
-            <p class="status up"><span class="dot"></span>{{ __('Operational') }}</p>
-        @else
-            <p class="status down"><span class="dot"></span>{{ __('Server unreachable') }}</p>
-        @endif
+        <p class="status {{ $health->value }}"><span class="dot"></span>{{ $health->label() }}</p>
 
         <div class="actions">
             <a class="button primary" href="{{ route('filament.admin.pages.dashboard') }}">{{ __('Open dashboard') }}</a>
