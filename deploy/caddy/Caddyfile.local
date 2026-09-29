@@ -1,0 +1,32 @@
+# Local HTTPS for docker-compose.yml. Caddy issues certificates from its own
+# local CA; trust that once (see the README) and both names work in a browser,
+# WebSockets included.
+{
+	local_certs
+
+	# Reachable from this machine as 127.0.0.1:2019 (see docker-compose.yml),
+	# so `make trust` can ask Caddy for the root certificate it generated and
+	# hand it to Caddy's own trust-store installer running out there.
+	admin 0.0.0.0:2019 {
+		# The listener is not loopback from inside the container, so Caddy
+		# would refuse requests arriving through the published port.
+		origins 127.0.0.1:2019 localhost:2019
+	}
+}
+
+# Certificates signed by an authority this machine already trusts, if
+# bin/patchbay-certs found one. Matching nothing is not an error, and then
+# these sites fall back to the authority Caddy generates above.
+(local-tls) {
+	import /etc/caddy/local-tls/*.caddy
+}
+
+patchbay.localhost {
+	import local-tls
+	reverse_proxy app:8080
+}
+
+ws.patchbay.localhost {
+	import local-tls
+	reverse_proxy reverb:8080
+}

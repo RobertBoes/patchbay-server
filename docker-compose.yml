@@ -1,0 +1,177 @@
+# Patchbay on your own machine, with HTTPS, in one command:
+#
+#   make up
+#
+# which is this file plus the one thing it cannot express: trusting the
+# certificate authority below on your machine. `docker compose up -d` still
+# works; follow it with `make trust`.
+#
+# Dashboard:  https://patchbay.localhost:8443
+# WebSockets: wss://ws.patchbay.localhost:8443
+#
+# Both resolve to this machine without a hosts file. Their certificates are
+# signed by whichever authority this machine already trusts - Herd, Valet or
+# mkcert - which is what bin/patchbay-certs looks for. Finding none, Caddy uses
+# an authority it generates itself and `make trust` installs that one.
+#
+# Type the https:// yourself: given patchbay.localhost:8443 a browser assumes
+# http:// on a non-80 port, and Caddy answers plaintext on its TLS port with
+# 400 Client sent an HTTP request to an HTTPS server. One port cannot serve
+# both schemes, so no redirect can cover this.
+#
+# The port is 8443 rather than 443 so that this works while Valet or Herd is
+# running; they hold 443, and sharing it fails in a way that is hard to read.
+# macOS lets Valet bind 127.0.0.1:443 and Caddy bind 0.0.0.0:443 at the same
+# time without complaint, then routes local requests to the narrower binding,
+# so Patchbay never sees them and Valet answers 404. Nothing reports a port
+# conflict. Set PATCHBAY_HTTPS_PORT=443 to use the standard port if it is free.
+#
+# This is for trying Patchbay out, not for production: the APP_KEY below is
+# public. docker-compose.production.yml is the deployable one.
+
+x-app: &app
+  build:
+    context: .
+  image: patchbay-server:local
+  restart: unless-stopped
+  stop_signal: SIGTERM
+  # Your .env, so every setting the application reads - DASHBOARD_ADMINS,
+  # quotas, registration, the PATCHBAY_ tuning knobs - works here exactly as it
+  # does outside Docker. There need not be one.
+  env_file:
+    - path: .env
+      required: false
+  # Read after that file and overriding it: the values that describe this
+  # stack rather than your preferences. A .env written for running the
+  # application directly points at a SQLite file and a host of 127.0.0.1,
+  # neither of which means anything in here.
+  environment: &env
+    APP_ENV: local
+    APP_DEBUG: "true"
+    # Yours if you have one, so sessions survive moving between this stack and
+    # running the application directly. The fallback only exists so a clone
+    # with no .env still boots; it is public, so never deploy with it.
+    APP_KEY: ${APP_KEY:-base64:cGF0Y2hiYXktbG9jYWwtZGV2ZWxvcG1lbnQta2V5ISE=}
+    APP_URL: https://patchbay.localhost:${PATCHBAY_HTTPS_PORT:-8443}
+    LOG_CHANNEL: stderr
+    DB_CONNECTION: pgsql
+    DB_HOST: pgsql
+    DB_PORT: "5432"
+    DB_DATABASE: patchbay
+    DB_USERNAME: patchbay
+    DB_PASSWORD: patchbay
+    SESSION_DRIVER: database
+    # A domain from your own .env would scope the cookie to a name this stack
+    # is not served under, and nobody would stay logged in.
+    SESSION_DOMAIN: ""
+    QUEUE_CONNECTION: database
+    CACHE_STORE: database
+    MAIL_MAILER: log
+    REVERB_PROVIDER: patchbay
+    REVERB_SERVER_HOST: 0.0.0.0
+    REVERB_SERVER_PORT: "8080"
+    # The name the WebSocket server answers to here, which is not the one a
+    # .env would name for running Reverb directly.
+    REVERB_HOST: ws.patchbay.localhost
+    REVERB_SCALING_ENABLED: "false"
+    PATCHBAY_HOST: ws.patchbay.localhost
+    PATCHBAY_PORT: ${PATCHBAY_HTTPS_PORT:-8443}
+    PATCHBAY_SCHEME: https
+    PATCHBAY_SERVER_URL: http://reverb:8080
+    DASHBOARD_DOMAIN: patchbay.localhost
+    TRUSTED_PROXIES: "*"
+    # What this stack prefers, which your .env or the shell may still change,
+    # because Compose reads them both when resolving these.
+    PATCHBAY_RELOAD_INTERVAL: ${PATCHBAY_RELOAD_INTERVAL:-2}
+    DASHBOARD_LANDING_METRICS: ${DASHBOARD_LANDING_METRICS:-true}
+    DASHBOARD_ADMINS: ${DASHBOARD_ADMINS:-}
+    # The image runs migrations and caches config on startup by default. Only
+    # one service should, or they race each other; `app` turns it back on.
+    AUTORUN_ENABLED: "false"
+  depends_on:
+    pgsql:
+      condition: service_healthy
+
+services:
+  app:
+    <<: *app
+    environment:
+      <<: *env
+      AUTORUN_ENABLED: "true"
+      AUTORUN_LARAVEL_MIGRATION: "true"
+
+  reverb:
+    <<: *app
+    command: ["php", "/var/www/html/artisan", "reverb:start", "--host=0.0.0.0", "--port=8080"]
+    depends_on:
+      pgsql:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "healthcheck-reverb"]
+      interval: 30s
+      start_period: 10s
+
+  queue:
+    <<: *app
+    command: ["php", "/var/www/html/artisan", "queue:work", "--tries=3"]
+    depends_on:
+      pgsql:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "healthcheck-queue"]
+      interval: 30s
+      start_period: 10s
+
+  scheduler:
+    <<: *app
+    command: ["php", "/var/www/html/artisan", "schedule:work"]
+    depends_on:
+      pgsql:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "healthcheck-schedule"]
+      interval: 60s
+      start_period: 10s
+
+  pgsql:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: patchbay
+      POSTGRES_USER: patchbay
+      POSTGRES_PASSWORD: patchbay
+    volumes:
+      - pgsql_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U patchbay -d patchbay"]
+      interval: 5s
+      retries: 10
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "${PATCHBAY_HTTPS_PORT:-8443}:443"
+      # Caddy's admin API, bound to this machine only, so `make trust` can
+      # fetch the root certificate through it. It can reconfigure Caddy, so it
+      # is deliberately not published on any other interface.
+      - "127.0.0.1:2019:2019"
+    volumes:
+      - ./deploy/caddy/Caddyfile.local:/etc/caddy/Caddyfile:ro
+      # Certificates bin/patchbay-certs signed with an authority already
+      # trusted here, when it found one. Absent, Caddy uses its own.
+      - ./deploy/caddy/local-tls:/etc/caddy/local-tls:ro
+      - caddy_data:/data
+    depends_on:
+      - app
+      - reverb
+
+volumes:
+  pgsql_data:
+  caddy_data:

@@ -1,0 +1,35 @@
+# Patchbay behind the caddy-proxy host: a site file for its sites/ directory.
+# The stack (docker-compose.production.yml) joins the shared `proxy` network
+# as `patchbay` (web) and `patchbay-reverb` (WebSocket server).
+#
+# Replace the two hostnames and the certificate paths. With Cloudflare in
+# front (orange cloud) and Authenticated Origin Pulls, the tls block below
+# only accepts Cloudflare's edge; without Cloudflare, drop the tls block and
+# let Caddy fetch certificates itself.
+#
+# Two names on purpose: the panel refuses requests for any host but
+# DASHBOARD_DOMAIN, so the WebSocket name never serves a login form.
+
+dash.example.com {
+	log
+	tls /etc/caddy/certs/example.com.pem /etc/caddy/certs/example.com.key {
+		client_auth {
+			mode require_and_verify
+			trust_pool file /etc/caddy/certs/cloudflare-origin-pull.pem
+		}
+	}
+	reverse_proxy patchbay:8080
+}
+
+ws.example.com {
+	log
+	tls /etc/caddy/certs/example.com.pem /etc/caddy/certs/example.com.key {
+		client_auth {
+			mode require_and_verify
+			trust_pool file /etc/caddy/certs/cloudflare-origin-pull.pem
+		}
+	}
+	# Caddy proxies WebSocket upgrades natively. A held connection is not an
+	# idle one; Reverb's own ping keeps it alive through Cloudflare.
+	reverse_proxy patchbay-reverb:8080
+}

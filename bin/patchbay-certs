@@ -1,0 +1,212 @@
+#!/usr/bin/env bash
+#
+# Issue the certificates docker-compose.yml serves for patchbay.localhost.
+#
+#   bin/patchbay-certs issue    # sign them with an authority already trusted here
+#   bin/patchbay-certs reset    # forget them, leaving Caddy to use its own
+#   bin/patchbay-certs verify   # 0 verifies, 1 untrusted, 2 nothing answered
+#
+# Most people running this already trust a local certificate authority, because
+# Herd, Valet and mkcert each install one. Signing with theirs means nothing has
+# to be added to a trust store, which is the one part of the setup Docker cannot
+# do for itself. Only the certificates this issues are mounted into the
+# container; the authority's key stays here, since it can sign for any name.
+#
+# Found nothing to sign with? That is not a failure. The Caddyfile falls back to
+# the authority Caddy generates for itself, and `make trust` installs that one.
+#
+# Using something this does not know about, Laragon or your own authority:
+#
+#   PATCHBAY_CA_CERT=/path/to/root.pem PATCHBAY_CA_KEY=/path/to/root.key make up
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+readonly TLS_DIR=deploy/caddy/local-tls
+readonly NAMES=(patchbay.localhost ws.patchbay.localhost)
+
+# Where the tools people already have keep their authority. A pair that is not
+# installed simply does not match; add a line for anything missing. Each entry
+# is a name, a certificate and its key.
+candidate_authorities() {
+    if [ -n "${PATCHBAY_CA_CERT:-}" ] && [ -n "${PATCHBAY_CA_KEY:-}" ]; then
+        printf '%s\t%s\t%s\n' "PATCHBAY_CA_CERT" "$PATCHBAY_CA_CERT" "$PATCHBAY_CA_KEY"
+    fi
+
+    if command -v mkcert >/dev/null 2>&1; then
+        local root
+        root=$(mkcert -CAROOT 2>/dev/null || true)
+        [ -n "$root" ] && printf '%s\t%s\t%s\n' \
+            "mkcert" "$root/rootCA.pem" "$root/rootCA-key.pem"
+    fi
+
+    printf '%s\t%s\t%s\n' "Valet" \
+        "$HOME/.config/valet/CA/LaravelValetCASelfSigned.pem" \
+        "$HOME/.config/valet/CA/LaravelValetCASelfSigned.key"
+
+    printf '%s\t%s\t%s\n' "Herd" \
+        "$HOME/Library/Application Support/Herd/config/valet/CA/LaravelValetCASelfSigned.pem" \
+        "$HOME/Library/Application Support/Herd/config/valet/CA/LaravelValetCASelfSigned.key"
+
+    printf '%s\t%s\t%s\n' "Laragon" \
+        "/c/laragon/etc/ssl/laragon.crt" \
+        "/c/laragon/etc/ssl/laragon.key"
+}
+
+reset_certificates() {
+    [ -d "$TLS_DIR" ] || return 0
+
+    rm -rf "$TLS_DIR"
+    reload_caddy
+}
+
+# Caddy reads certificates once, at startup, so changing them under a running
+# container means nothing until it restarts. Before the stack is up there is
+# nothing to restart, and it will read them when it starts.
+reload_caddy() {
+    docker compose ps --status running --services 2>/dev/null |
+        grep -qx caddy || return 0
+
+    docker compose restart caddy >/dev/null 2>&1 || true
+}
+
+# Does the certificate verify? Answering with curl asks exactly what a browser
+# asks, and needs no knowledge of where this operating system keeps its roots.
+#
+#   0  it verifies
+#   1  it does not, which means the authority is not trusted here
+#   2  nothing answered, so the question stays open - never read that as
+#      untrusted, or a slow start would throw away good certificates
+verify_certificate() {
+    local url="https://patchbay.localhost:${PATCHBAY_HTTPS_PORT:-8443}/"
+    local status attempt
+
+    for attempt in $(seq 1 20); do
+        status=0
+        curl -fsS -o /dev/null --max-time 5 "$url" 2>/dev/null || status=$?
+
+        case $status in
+            0) return 0 ;;
+            # 60 is an untrusted issuer, 51 a certificate that does not match.
+            # Both are real answers; no amount of waiting changes them.
+            60 | 51) return 1 ;;
+        esac
+
+        sleep 1
+    done
+
+    return 2
+}
+
+issue_certificates() {
+    local name cert key
+
+    while IFS=$'\t' read -r name cert key; do
+        [ -r "$cert" ] && [ -r "$key" ] || continue
+
+        if issue_with "$name" "$cert" "$key"; then
+            return 0
+        fi
+    done < <(candidate_authorities)
+
+    reset_certificates
+    echo "No local certificate authority found, so Caddy will generate one."
+    echo "'make trust' installs it; that is the step that asks for a password."
+    return 0
+}
+
+issue_with() {
+    local name=$1 ca_cert=$2 ca_key=$3
+    local subject_alt_names
+
+    subject_alt_names=$(printf 'DNS:%s,' "${NAMES[@]}")
+    subject_alt_names=${subject_alt_names%,}
+
+    mkdir -p "$TLS_DIR"
+
+    # Reading the key from a terminal would hang on an authority protected by a
+    # passphrase, so refuse rather than wait; </dev/null turns it into an error.
+    if ! openssl req -new -newkey rsa:2048 -nodes \
+        -keyout "$TLS_DIR/patchbay.key" \
+        -out "$TLS_DIR/patchbay.csr" \
+        -subj "/CN=${NAMES[0]}" </dev/null >/dev/null 2>&1; then
+        echo "Could not create a key to be signed by the $name authority." >&2
+        return 1
+    fi
+
+    # 825 days is the longest a leaf certificate may live before Apple's
+    # platforms reject it however it was signed.
+    if ! openssl x509 -req -sha256 -days 825 \
+        -in "$TLS_DIR/patchbay.csr" \
+        -CA "$ca_cert" -CAkey "$ca_key" -CAcreateserial \
+        -out "$TLS_DIR/patchbay.crt" \
+        -extfile <(printf 'subjectAltName=%s\nextendedKeyUsage=serverAuth\nbasicConstraints=critical,CA:FALSE\n' \
+            "$subject_alt_names") </dev/null >/dev/null 2>&1; then
+        echo "The $name authority could not sign the certificate; its key may be" >&2
+        echo "protected by a passphrase. Skipping it." >&2
+        rm -f "$TLS_DIR/patchbay.key" "$TLS_DIR/patchbay.csr"
+        return 1
+    fi
+
+    rm -f "$TLS_DIR/patchbay.csr" "$TLS_DIR"/*.srl
+
+    # The Caddyfile imports this, and serves its own certificates when it finds
+    # nothing to import.
+    cat > "$TLS_DIR/tls.caddy" <<'CADDY'
+tls /etc/caddy/local-tls/patchbay.crt /etc/caddy/local-tls/patchbay.key
+CADDY
+
+    reload_caddy
+
+    # Whether this machine actually trusts that authority is not something to
+    # claim here; `make trust` settles it by asking for the dashboard over
+    # HTTPS, and falls back to Caddy's own authority if it turns out not to.
+    echo "Signed ${NAMES[*]} with the $name certificate authority."
+}
+
+# Get the certificate verifying if that is possible here, and say whether the
+# caller still has to install Caddy's own authority.
+#
+#   0   it verifies; nothing left to do
+#   10  it cannot be made to verify by signing, so that authority needs trusting
+#   1   nothing answered, so nothing was changed
+ensure_trusted() {
+    case $(verified_status) in
+        0) echo "Certificate trusted; nothing to do."; return 0 ;;
+        2) unreachable; return 1 ;;
+    esac
+
+    if [ -f "$TLS_DIR/tls.caddy" ]; then
+        echo "The authority those certificates were signed with is not trusted"
+        echo "here after all, so Caddy will use its own instead."
+        reset_certificates
+    fi
+
+    return 10
+}
+
+verified_status() {
+    local status=0
+    verify_certificate || status=$?
+    echo "$status"
+}
+
+unreachable() {
+    echo "https://patchbay.localhost:${PATCHBAY_HTTPS_PORT:-8443} did not answer, so" >&2
+    echo "whether its certificate is trusted is still unknown. Nothing was changed." >&2
+    echo >&2
+    echo "    docker compose ps" >&2
+    echo "    docker compose logs caddy" >&2
+}
+
+case "${1:-issue}" in
+    issue) issue_certificates ;;
+    reset) reset_certificates ;;
+    verify) verify_certificate ;;
+    ensure) ensure_trusted ;;
+    *)
+        echo "Usage: bin/patchbay-certs [issue|reset|verify|ensure]" >&2
+        exit 64
+        ;;
+esac

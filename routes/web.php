@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\LandingController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+Route::domain(config('dashboard.domain'))
+    ->group(function () {
+        Route::get('/', LandingController::class)->name('landing');
+    });
