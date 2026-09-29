@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "eb59f3bac5f4efd2832b9346d4e579cc",
+    "content-hash": "df4f3bb622e3226a2aef1630491b4326",
     "packages": [
         {
             "name": "anourvalar/eloquent-serialize",
@@ -5881,10 +5881,16 @@
         {
             "name": "robertboes/patchbay",
             "version": "dev-main",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/RobertBoes/patchbay.git",
+                "reference": "d666706b24e1faff8099f7fab7f27f5c03bde2ab"
+            },
             "dist": {
-                "type": "path",
-                "url": "../patchbay",
-                "reference": "684f81f43b93110b6f200f734161e5fc24e35dd5"
+                "type": "zip",
+                "url": "https://api.github.com/repos/RobertBoes/patchbay/zipball/d666706b24e1faff8099f7fab7f27f5c03bde2ab",
+                "reference": "d666706b24e1faff8099f7fab7f27f5c03bde2ab",
+                "shasum": ""
             },
             "require": {
                 "illuminate/console": "^12.0 || ^13.0",
@@ -5906,6 +5912,7 @@
             "suggest": {
                 "filament/filament": "Required to use the Patchbay dashboard for managing Reverb applications."
             },
+            "default-branch": true,
             "type": "library",
             "extra": {
                 "laravel": {
@@ -5920,19 +5927,7 @@
                     "RobertBoes\\Patchbay\\Database\\Factories\\": "database/factories"
                 }
             },
-            "autoload-dev": {
-                "psr-4": {
-                    "RobertBoes\\Patchbay\\Tests\\": "tests"
-                }
-            },
-            "scripts": {
-                "test": [
-                    "vendor/bin/phpunit"
-                ],
-                "format": [
-                    "vendor/bin/pint"
-                ]
-            },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "MIT"
             ],
@@ -5944,16 +5939,17 @@
             "description": "Dynamic Laravel Reverb applications. Manage your WebSocket apps in the database and reload them without restarting the server.",
             "homepage": "https://github.com/RobertBoes/patchbay",
             "keywords": [
+                "WebSockets",
                 "laravel",
                 "multi-tenant",
                 "pusher",
-                "reverb",
-                "websockets"
+                "reverb"
             ],
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
+            "support": {
+                "issues": "https://github.com/RobertBoes/patchbay/issues",
+                "source": "https://github.com/RobertBoes/patchbay/tree/main"
+            },
+            "time": "2026-09-29T12:16:07+00:00"
         },
         {
             "name": "ryangjchandler/blade-capture-directive",

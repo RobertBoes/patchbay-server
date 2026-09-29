@@ -9,28 +9,11 @@ on:
 permissions:
   contents: read
 
-# Temporary, until robertboes/patchbay is on Packagist: composer.json takes
-# the package from ../patchbay, so both repositories are checked out side by
-# side and the package is handed to the image build as a named context.
-env:
-  PATCHBAY_REF: dev
-
 jobs:
   tests:
     runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: server
     steps:
       - uses: actions/checkout@v6
-        with:
-          path: server
-
-      - uses: actions/checkout@v6
-        with:
-          repository: RobertBoes/patchbay
-          ref: ${{ env.PATCHBAY_REF }}
-          path: patchbay
 
       - uses: shivammathur/setup-php@v2
         with:
@@ -56,14 +39,6 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v6
-        with:
-          path: server
-
-      - uses: actions/checkout@v6
-        with:
-          repository: RobertBoes/patchbay
-          ref: ${{ env.PATCHBAY_REF }}
-          path: patchbay
 
       # arm64 is emulated. Slow, but one job; split into native runners per
       # platform and merge the manifests if build time starts to matter.
@@ -88,8 +63,7 @@ jobs:
 
       - uses: docker/build-push-action@v6
         with:
-          context: server
-          build-contexts: patchbay=patchbay
+          context: .
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
