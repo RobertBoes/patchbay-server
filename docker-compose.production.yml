@@ -11,6 +11,12 @@
 #
 # Only the web and Reverb services join `proxy`, under names specific enough
 # to share that network with other stacks. Everything else stays internal.
+#
+# The stack reaches its own services by those specific names too, never by
+# service name: Compose registers `reverb` on `proxy` as well, where another
+# stack's `reverb` answers to it just the same, and a lookup from a container
+# on both networks can land on either. Hence PATCHBAY_SERVER_URL points at
+# patchbay-reverb and DB_HOST at patchbay-pgsql.
 
 x-app: &app
   image: ${PATCHBAY_IMAGE:-ghcr.io/robertboes/patchbay-server:latest}
@@ -50,7 +56,9 @@ services:
       proxy:
         aliases:
           - patchbay-reverb
-      internal: null
+      internal:
+        aliases:
+          - patchbay-reverb
     healthcheck:
       test: ["CMD", "healthcheck-reverb"]
       interval: 30s
@@ -71,7 +79,9 @@ services:
       patchbay:
         condition: service_healthy
     networks:
-      - internal
+      internal:
+        aliases:
+          - patchbay-pgsql
     healthcheck:
       test: ["CMD", "healthcheck-queue"]
       interval: 30s
