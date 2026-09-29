@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use RobertBoes\Patchbay\ApplicationFactory;
 use Tests\TestCase;
 
 /**
@@ -35,6 +36,18 @@ class DashboardDomainTest extends TestCase
     {
         $this->get('http://dash.patchbay.test/')->assertOk();
         $this->get('http://dash.patchbay.test/admin/login')->assertOk();
+    }
+
+    public function test_an_application_that_restricts_its_origins_still_admits_the_dashboard(): void
+    {
+        $application = app(ApplicationFactory::class)->make([
+            'id' => '01HZY0000000000000000000AA',
+            'key' => 'test-key',
+            'secret' => 'test-secret',
+            'allowed_origins' => ['app.example.com'],
+        ]);
+
+        $this->assertSame(['app.example.com', 'dash.patchbay.test'], $application->allowedOrigins());
     }
 
     public function test_every_other_host_serves_neither(): void

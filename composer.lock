@@ -5884,12 +5884,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/RobertBoes/patchbay.git",
-                "reference": "d666706b24e1faff8099f7fab7f27f5c03bde2ab"
+                "reference": "d5d6afdc7c8e67e96eb6b8478e6ed23fe68b7345"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/RobertBoes/patchbay/zipball/d666706b24e1faff8099f7fab7f27f5c03bde2ab",
-                "reference": "d666706b24e1faff8099f7fab7f27f5c03bde2ab",
+                "url": "https://api.github.com/repos/RobertBoes/patchbay/zipball/d5d6afdc7c8e67e96eb6b8478e6ed23fe68b7345",
+                "reference": "d5d6afdc7c8e67e96eb6b8478e6ed23fe68b7345",
                 "shasum": ""
             },
             "require": {
@@ -5949,7 +5949,7 @@
                 "issues": "https://github.com/RobertBoes/patchbay/issues",
                 "source": "https://github.com/RobertBoes/patchbay/tree/main"
             },
-            "time": "2026-09-29T12:16:07+00:00"
+            "time": "2026-09-29T15:34:51+00:00"
         },
         {
             "name": "ryangjchandler/blade-capture-directive",
