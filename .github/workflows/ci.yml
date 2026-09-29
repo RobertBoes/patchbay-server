@@ -5,6 +5,9 @@ on:
     branches: [main, dev]
     tags: ['v*']
   pull_request:
+  # Redeploys main, for when only the production Environment in 1Password
+  # changed and there is no commit to push.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -31,7 +34,7 @@ jobs:
 
   image:
     # Published from main and from version tags; every other push only tests.
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     needs: tests
     runs-on: ubuntu-24.04
     permissions:
@@ -60,6 +63,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha
+            type=sha,format=long,prefix=
 
       - uses: docker/build-push-action@v6
         with:
@@ -70,3 +74,79 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Ships main to the caddy-proxy host, the way headless-form does: the compose
+  # file and .env go to /opt/patchbay and the stack is pulled and brought up
+  # there. The .env is read from a 1Password Environment, so it is edited in
+  # 1Password and nowhere else. Only this repository deploys; a fork's main has
+  # neither the host nor the secrets.
+  deploy:
+    if: github.repository == 'RobertBoes/patchbay-server' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    needs: image
+    runs-on: ubuntu-24.04
+    environment: production
+    concurrency:
+      group: deploy
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v6
+
+      # `op environment` is only in the beta CLI so far. Pinned, so a later
+      # beta cannot change what a deploy does; move to the stable release, or
+      # 1password/load-secrets-action, once the command reaches it.
+      - name: Install 1Password CLI
+        env:
+          OP_VERSION: v2.40.0-beta.02
+        run: |
+          curl -fsSLo op.zip "https://cache.agilebits.com/dist/1P/op2/pkg/${OP_VERSION}/op_linux_amd64_${OP_VERSION}.zip"
+          unzip -q op.zip op -d "$RUNNER_TEMP/op"
+          echo "$RUNNER_TEMP/op" >> "$GITHUB_PATH"
+
+      # Checked before anything reaches the server: an empty read, or one that
+      # came back with 1Password's placeholder instead of a value, fails here
+      # and the running stack keeps its current .env.
+      - name: Read the production Environment
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OP_ENVIRONMENT_ID: ${{ vars.OP_ENVIRONMENT_ID }}
+        run: |
+          op environment read "$OP_ENVIRONMENT_ID" > .env.deploy
+          grep -q '^APP_KEY=.' .env.deploy || { echo "The Environment has no APP_KEY; refusing to deploy." >&2; exit 1; }
+          if grep -qi 'concealed' .env.deploy; then
+            echo "The Environment came back masked; refusing to deploy." >&2
+            exit 1
+          fi
+          # Pinned to this commit's image rather than latest, so what runs is
+          # what was just tested and built, and rerunning an old deploy rolls back.
+          printf '\nPATCHBAY_IMAGE=ghcr.io/%s:%s\n' "${GITHUB_REPOSITORY,,}" "$GITHUB_SHA" >> .env.deploy
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Ship compose file and env
+        run: |
+          scp -i ~/.ssh/deploy_key docker-compose.production.yml \
+            deploy@${{ secrets.DEPLOY_HOST }}:/opt/patchbay/docker-compose.yml
+          scp -i ~/.ssh/deploy_key .env.deploy \
+            deploy@${{ secrets.DEPLOY_HOST }}:/opt/patchbay/.env
+          rm .env.deploy
+
+      # A plain recreate: the dashboard migrates as it starts and the other
+      # services wait for it to be healthy. Caddy holds web requests through
+      # the gap; WebSocket clients are dropped and reconnect on their own.
+      - name: Deploy
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@${{ secrets.DEPLOY_HOST }} bash -s <<'EOF'
+            set -euo pipefail
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            cd /opt/patchbay
+            docker compose pull -q
+            docker compose up -d --wait --wait-timeout 180 --remove-orphans
+            docker logout ghcr.io
+          EOF
