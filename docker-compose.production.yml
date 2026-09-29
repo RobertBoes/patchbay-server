@@ -79,9 +79,7 @@ services:
       patchbay:
         condition: service_healthy
     networks:
-      internal:
-        aliases:
-          - patchbay-pgsql
+      - internal
     healthcheck:
       test: ["CMD", "healthcheck-queue"]
       interval: 30s
@@ -119,7 +117,9 @@ services:
     volumes:
       - pgsql_data:/var/lib/postgresql/data
     networks:
-      - internal
+      internal:
+        aliases:
+          - patchbay-pgsql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}"]
       interval: 5s
