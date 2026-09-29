@@ -41,6 +41,11 @@ services:
     command: ["php", "/var/www/html/artisan", "reverb:start", "--host=0.0.0.0", "--port=8080"]
     environment:
       AUTORUN_ENABLED: "false"
+    depends_on:
+      pgsql:
+        condition: service_healthy
+      patchbay:
+        condition: service_healthy
     networks:
       proxy:
         aliases:
@@ -60,6 +65,11 @@ services:
     command: ["php", "/var/www/html/artisan", "queue:work", "--tries=3"]
     environment:
       AUTORUN_ENABLED: "false"
+    depends_on:
+      pgsql:
+        condition: service_healthy
+      patchbay:
+        condition: service_healthy
     networks:
       - internal
     healthcheck:
@@ -75,6 +85,11 @@ services:
     command: ["php", "/var/www/html/artisan", "schedule:work"]
     environment:
       AUTORUN_ENABLED: "false"
+    depends_on:
+      pgsql:
+        condition: service_healthy
+      patchbay:
+        condition: service_healthy
     networks:
       - internal
     healthcheck:

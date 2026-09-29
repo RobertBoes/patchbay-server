@@ -29,4 +29,4 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 /scratch
-/caddy-root.crt
+/deploy/caddy/local-tls
