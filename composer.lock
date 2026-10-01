@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "df4f3bb622e3226a2aef1630491b4326",
+    "content-hash": "fb1bcd03e43a8c46623590b56d879722",
     "packages": [
         {
             "name": "anourvalar/eloquent-serialize",
@@ -5877,6 +5877,71 @@
                 }
             ],
             "time": "2024-06-11T12:45:25+00:00"
+        },
+        {
+            "name": "robertboes/laravel-cloudflare-proxies",
+            "version": "v0.1.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/RobertBoes/laravel-cloudflare-proxies.git",
+                "reference": "e24123588cea0aaba4171dc530ca75f2c7489873"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/RobertBoes/laravel-cloudflare-proxies/zipball/e24123588cea0aaba4171dc530ca75f2c7489873",
+                "reference": "e24123588cea0aaba4171dc530ca75f2c7489873",
+                "shasum": ""
+            },
+            "require": {
+                "illuminate/console": "^12.0|^13.0",
+                "illuminate/contracts": "^12.0|^13.0",
+                "illuminate/http": "^12.0|^13.0",
+                "illuminate/support": "^12.0|^13.0",
+                "php": "^8.4",
+                "spatie/laravel-package-tools": "^1.92"
+            },
+            "require-dev": {
+                "larastan/larastan": "^3.0",
+                "laravel/pint": "^1.24",
+                "orchestra/testbench": "^10.0|^11.0",
+                "pestphp/pest": "^4.0",
+                "pestphp/pest-plugin-laravel": "^4.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "RobertBoes\\CloudflareProxies\\CloudflareProxiesServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "RobertBoes\\CloudflareProxies\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Robert Boes",
+                    "email": "robert@hihaho.com"
+                }
+            ],
+            "description": "Trust Cloudflare's published ranges and the private proxy hop, so the client IP and scheme are right behind Cloudflare.",
+            "keywords": [
+                "cloudflare",
+                "laravel",
+                "trusted-proxies",
+                "x-forwarded-for"
+            ],
+            "support": {
+                "issues": "https://github.com/RobertBoes/laravel-cloudflare-proxies/issues",
+                "source": "https://github.com/RobertBoes/laravel-cloudflare-proxies/tree/v0.1.1"
+            },
+            "time": "2026-10-01T14:34:57+00:00"
         },
         {
             "name": "robertboes/patchbay",

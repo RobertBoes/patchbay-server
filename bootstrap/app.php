@@ -12,9 +12,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        if ($proxies = env('TRUSTED_PROXIES')) {
-            $middleware->trustProxies(at: $proxies === '*' ? '*' : explode(',', $proxies));
-        }
+        // Proxies are trusted by robertboes/laravel-cloudflare-proxies. Laravel
+        // adds APP_URL's host and subdomains to these; DASHBOARD_DOMAIN may
+        // differ from it, and the image's healthcheck curls localhost.
+        $middleware->trustHosts(at: fn (): array => array_filter([
+            '^localhost$',
+            config('dashboard.domain') ? '^'.preg_quote(config('dashboard.domain')).'$' : null,
+        ]));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

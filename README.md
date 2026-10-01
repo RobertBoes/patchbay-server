@@ -266,7 +266,7 @@ Turn it off entirely with `DASHBOARD_LANDING=false`, and the root becomes a
 |---|---|
 | `DASHBOARD_ALLOWED_EMAILS` | A comma-separated allowlist. Credentials alone stop being enough; the address has to be one you named. Checked on every request, so taking someone off the list ends the session they already had open. |
 | `DASHBOARD_REQUIRE_MFA` | Sends everyone to set up an authenticator app before they can use the panel. Available from the profile page either way, with recovery codes. |
-| `TRUSTED_PROXIES` | The proxies in front of the application, or `*` when nothing else can reach it. Without it every request appears to come from the load balancer, which would put the whole internet in one login-throttle bucket. |
+| Proxies | Cloudflare's ranges and the private hop of your reverse proxy are trusted, nothing else, so the login throttle sees real client addresses and a made-up `X-Forwarded-For` entry never wins. Further hops, such as a load balancer's range, go in `CLOUDFLARE_PROXIES_EXTRA`. `php artisan cloudflare-proxies:check` shows what is trusted. |
 | `SESSION_SECURE_COOKIE` | `true` anywhere the dashboard is served over https. |
 | `SESSION_DOMAIN` | Leave `null`. Widening it to `.my-ws-server.com` would hand the session cookie to the WebSocket hostname as well. |
 
