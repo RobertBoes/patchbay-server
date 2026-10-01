@@ -79,7 +79,6 @@ x-app: &app
     PATCHBAY_SCHEME: https
     PATCHBAY_SERVER_URL: http://reverb:8080
     DASHBOARD_DOMAIN: patchbay.localhost
-    TRUSTED_PROXIES: "*"
     # What this stack prefers, which your .env or the shell may still change,
     # because Compose reads them both when resolving these.
     PATCHBAY_RELOAD_INTERVAL: ${PATCHBAY_RELOAD_INTERVAL:-2}

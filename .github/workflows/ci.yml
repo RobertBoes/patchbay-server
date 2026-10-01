@@ -32,6 +32,8 @@ jobs:
 
       - run: php artisan test
 
+      - run: php artisan cloudflare-proxies:check
+
   # One native runner per platform. Under QEMU the arm64 half compiled intl
   # from source for the better part of the build; natively it takes a minute.
   # Each pushes its image by digest only, and `image` below tags the pair.
