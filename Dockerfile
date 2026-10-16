@@ -3,7 +3,7 @@
 ############################################
 # serversideup/php with intl, bcmath, its real-IP shim removed and the shared
 # env defaults; see https://github.com/RobertBoes/laravel-php.
-FROM ghcr.io/robertboes/laravel-php:8.5.10@sha256:e567b75f62fa05047bb8c4e3de7948d39d7bd0f279f74236c0e27462663d63a3 AS base
+FROM ghcr.io/robertboes/laravel-php:8.5.11@sha256:bda93110495e5a8b7c6838f7b0c38c65762f9a75af85b492031f2fb67206226d AS base
 
 ############################################
 # Composer dependencies
